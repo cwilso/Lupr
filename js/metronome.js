@@ -74,12 +74,20 @@ function oldscheduleMetronome() {
 }
 */
 
+var missedBeat = false;
+var audioTimeStart;
+
 function scheduleMetronome( realTime, audioTime ) {
     // while there are notes that will need to play before the next interval, 
     // schedule them and advance the pointer.
 
-    console.log( "schedule: real " + realTime + "ms audio: " + audioTime );
+    // console.log( "schedule: real " + realTime + "ms audio: " + audioTime );
     while (nextQuarterBeatTime < realTime + scheduleAheadTime ) {
+        if (nextQuarterBeatTime < realTime) {
+            console.log( "Missed beat by " + (realTime-nextQuarterBeatTime) + "ms." );
+            missedBeat = true;
+        } else
+            missedBeat = false;
         if (!( (noteResolution==1) && (nextQuarterBeat%2)) // we're not playing non-8th 16th notes
             && !((noteResolution==2) && (nextQuarterBeat%4))) { // we're not playing non-quarter 8th notes
             // create an oscillator
@@ -92,8 +100,9 @@ function scheduleMetronome( realTime, audioTime ) {
             else                        // other 16th notes = high pitch
                 osc.frequency.value = 880.0;
 
-            var startTime = (nextQuarterBeatTime - realTime)/1000.0 + audioTime;
-            console.log( "scheduled beat " + nextQuarterBeat + " at " + startTime );
+//            var startTime = (nextQuarterBeatTime - realTime)/1000.0;// + audioTime;
+            var startTime = (nextQuarterBeatTime - realTimeStart)/1000.0 + audioTimeStart;
+//            console.log( "scheduled beat " + nextQuarterBeat + " at " + startTime + "sec." );
             osc.noteOn( startTime );
             osc.noteOff( startTime + noteLength );
         }
@@ -117,6 +126,8 @@ function startSequence() {
     lastAudioTime = audioContext.currentTime;
     nextQuarterBeat = 0;
     nextQuarterBeatTime = lastRealTime;
+    audioTimeStart = lastAudioTime;
+    realTimeStart = lastRealTime;
     scheduleMetronome( lastRealTime, lastAudioTime );
 }
 
@@ -172,7 +183,7 @@ function draw( time ) {
     canvasContext.beginPath();
     canvasContext.arc( centerX, centerY, canvas.height/4, 0, 2*Math.PI, false )
     canvasContext.lineWidth = 20;
-    canvasContext.fillStyle = '#aaaaaa';
+    canvasContext.fillStyle = missedBeat ? 'red' : '#aaaaaa';
     canvasContext.fill();
 
     // line color
