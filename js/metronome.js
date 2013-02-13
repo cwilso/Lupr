@@ -1,5 +1,6 @@
 var audioContext = null;
 var isPlaying = false;		// Are we currently playing?
+var isRecordingMIDI = false;    // are we recording?
 var startTime;				// The start time of the entire sequence.
 var tempo = 120.0;			// tempo (in beats per minute)
 var scheduleAheadTime = 50.0;	// How far ahead to schedule audio (in milliseconds)
@@ -19,6 +20,9 @@ var lastAudioTime = 0.0;    // last checkpointed audioContext time
 
 var nextQuarterBeat;        // What note is currently last scheduled?
 var nextQuarterBeatTime = 0.0;     // when the next note is due.
+
+var midiNotesRecorded = [];
+var metronomeGain;
 
 // First, let's shim the requestAnimationFrame API, with a setTimeout fallback
 window.requestAnimFrame = (function(){
@@ -92,7 +96,7 @@ function scheduleMetronome( realTime, audioTime ) {
             && !((noteResolution==2) && (nextQuarterBeat%4))) { // we're not playing non-quarter 8th notes
             // create an oscillator
             var osc = audioContext.createOscillator();
-            osc.connect( audioContext.destination );
+            osc.connect( metronomeGain );
             if (! (nextQuarterBeat % 16) )   // beat 0 == low pitch
                 osc.frequency.value = 220.0;
             else if (nextQuarterBeat % 4)    // quarter notes = medium pitch
@@ -107,6 +111,8 @@ function scheduleMetronome( realTime, audioTime ) {
             osc.noteOff( startTime + noteLength );
         }
 
+        scheduleMIDINotes( sequenceBeat );
+
 
         // Advance current note and time by a quarter beat...
         // Notice this picks up the CURRENT tempo value to calculate beat length.
@@ -119,6 +125,26 @@ function scheduleMetronome( realTime, audioTime ) {
     }
 }
 
+function scheduleMIDINotes( time ) {
+
+    // TODO: this timing is all wrong; it's in beat sections, not seconds.
+    // and they should be sorted.
+    for (var i=0; i<midiNotesRecorded.length; i++) {
+        if (!midiNotesRecorded[i].played) {
+            var delta = midiNotesRecorded[i].time - time;
+            if (delta < (scheduleAheadTime/1000)) {
+                midiNotesRecorded[i].played = true;
+                midiOut.send([0x99, midiNotesRecorded[i].note, midiNotesRecorded[i].velocity],
+                    window.performance.now + delta);
+            }
+        }
+    }    
+}
+function clearMIDIMarkers() {
+    for (var i=0; i<midiNotesRecorded.length; i++) {
+        midiNotesRecorded[i].played = false;
+    }
+}
 function startSequence() {
     sequenceBar = 0;
     sequenceBeat = 0.0;
@@ -141,12 +167,14 @@ function updateSequenceTime( time ) {
     if ( sequenceBeat > beatsPerBar ) {
         sequenceBeat -= beatsPerBar;
         sequenceBar++;
+        clearMIDIMarkers();
     }
     scheduleMetronome( time, lastAudioTime );
 }
 
 function play() {
 	isPlaying = !isPlaying;
+    isRecordingMIDI = false;
 
 	if (isPlaying) { // start playing
 		current16thNote = 0;
@@ -160,6 +188,14 @@ function play() {
 	}
 }
 
+function recordMIDI() {
+    play();
+    if (isPlaying) {
+        isRecordingMIDI = true;
+        return "stop";
+    } else
+        return "rec";
+}
 function resetCanvas (e) {
     // resize the canvas - but remember - this clears the canvas too.
     canvas.width = window.innerWidth;
@@ -246,6 +282,8 @@ function init(){
     canvasContext.lineWidth = 2;
 
 	audioContext = new webkitAudioContext();
+    metronomeGain = audioContext.createGainNode();
+    metronomeGain.connect(audioContext.destination);
 
 	// if we wanted to load audio files, etc., this is where we should do it.
 
