@@ -125,13 +125,12 @@ function scheduleMetronome( realTime, audioTime ) {
     }
 }
 
-function scheduleMIDINotes( time ) {
+function scheduleMIDINotes( time ) {  // time is in beats
 
-    // TODO: this timing is all wrong; it's in beat sections, not seconds.
-    // and they should be sorted.
+    // TODO: should sort the beats in order to make this quicker.
     for (var i=0; i<midiNotesRecorded.length; i++) {
         if (!midiNotesRecorded[i].played) {
-            var delta = midiNotesRecorded[i].time - time;
+            var delta = (midiNotesRecorded[i].time - time)*60000/tempo;
             if (delta < (scheduleAheadTime/1000)) {
                 midiNotesRecorded[i].played = true;
                 midiOut.send([0x99, midiNotesRecorded[i].note, midiNotesRecorded[i].velocity],
